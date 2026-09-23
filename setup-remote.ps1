@@ -64,17 +64,24 @@ Write-Host "[1/5] GitHub 账号：$ghUser" -ForegroundColor Cyan
 # ---------- 2. 确定提交身份 ----------
 if ([string]::IsNullOrWhiteSpace($Name)) { $Name = $ghUser }
 
+$emailRe = '^[^@\s<>{}"]+@[^@\s<>{}"]+\.[^@\s<>{}"]+$'
+if ([string]::IsNullOrWhiteSpace($Email) -or $Email -notmatch $emailRe) {
+    $Email = ""
+    # 只信任 /user 的公开邮箱，并且必须通过格式校验
+    # （坑：/user/emails 在缺少 user:email scope 时会把 404 的 JSON 打到 stdout，
+    #   若不校验就会把这个报错 JSON 当成邮箱写进 git config）
+    $pub = (& $gh api user --jq '.email // empty' 2>$null | Select-Object -First 1)
+    if ($pub -and "$pub".Trim() -match $emailRe) { $Email = "$pub".Trim() }
+}
 if ([string]::IsNullOrWhiteSpace($Email)) {
-    # 依次尝试：公开邮箱 -> 账号主邮箱 -> noreply 兜底
-    $Email = (& $gh api user --jq '.email // empty' 2>$null | Select-Object -First 1)
-    if ([string]::IsNullOrWhiteSpace($Email)) {
-        $Email = (& $gh api user/emails --jq '.[] | select(.primary) | .email' 2>$null | Select-Object -First 1)
-    }
-    if ([string]::IsNullOrWhiteSpace($Email)) {
-        $Email = "$ghUser@users.noreply.github.com"
-        Write-Host "      未能读取到你的邮箱，暂用 noreply 地址。" -ForegroundColor Yellow
-        Write-Host "      若提交没关联到你的头像，请带 -Email 参数重跑本脚本。" -ForegroundColor Yellow
-    }
+    # 官方推荐的 noreply 形式：<用户ID>+<用户名>@users.noreply.github.com
+    # 用它提交同样会正常关联到你的账号（只是不暴露真实邮箱）
+    $uid = (& $gh api user --jq '.id' 2>$null | Select-Object -First 1)
+    $uid = "$uid".Trim()
+    if ($uid -match '^\d+$') { $Email = "$uid+$ghUser@users.noreply.github.com" }
+    else { $Email = "$ghUser@users.noreply.github.com" }
+    Write-Host "      未读取到公开邮箱，已使用 GitHub 官方 noreply 地址。" -ForegroundColor DarkGray
+    Write-Host "      想改用真实邮箱：带 -Email 参数重跑本脚本。" -ForegroundColor DarkGray
 }
 $Email = $Email.Trim()
 
@@ -90,7 +97,12 @@ if (-not (Test-Path ".git")) { & git init 2>&1 | Out-Null }
 & git add -A 2>&1 | Out-Null
 & git diff --cached --quiet 2>&1 | Out-Null
 if ($LASTEXITCODE -ne 0) {
-    & git commit -m "chore: 初始化 ai-journey 学习仓库" 2>&1 | Out-Null
+    # 坑：PowerShell 把中文参数传给 git.exe 会用系统 ANSI 码页编码，提交信息必然乱码。
+    # 正确做法：写成 UTF-8 无 BOM 的临时文件，再用 git commit -F。
+    $msgFile = Join-Path $env:TEMP "ai-journey-commitmsg.txt"
+    [System.IO.File]::WriteAllText($msgFile, "chore: 初始化 ai-journey 学习仓库", (New-Object System.Text.UTF8Encoding($false)))
+    & git commit -F $msgFile 2>&1 | Out-Null
+    Remove-Item $msgFile -Force -ErrorAction SilentlyContinue
     Write-Host "[3/5] 首次提交完成" -ForegroundColor Cyan
 } else {
     Write-Host "[3/5] 无待提交改动，跳过" -ForegroundColor DarkGray
