@@ -7,7 +7,7 @@
 | 目录 | 项目 | 目的 | 状态 |
 |---|---|---|---|
 | `rag-kb/` | 生产级 RAG 知识库助手 | 旗舰项目：切块策略 + 混合检索 + Rerank + 引用溯源 + 评估 | ⬜ |
-| `agent-demo/` | 多步任务 Agent | 展示 Function Calling / ReAct / 状态机 / 记忆 / 人工确认 | ⬜ |
+| `agent-demo/` | 多步任务 Agent | 展示 Function Calling / ReAct / 状态机 / 记忆 / 人工确认 | 🟡 v0.1 跑通（本地 Ollama，零依赖） |
 | `eval-dashboard/` | 多模型评估看板 | 展示准确率 / 延迟 / 成本 / 幻觉率的量化对比能力 | ⬜ |
 | `vertical-ai/` | 垂直行业 AI 应用 | 选一个行业解决一个窄问题，体现业务理解 | ⬜ |
 
